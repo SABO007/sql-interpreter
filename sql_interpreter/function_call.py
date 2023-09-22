@@ -15,17 +15,17 @@ import time
 import datetime
 
 
-OPENAI_API_KEY = os.environ.get('OPENAI_API_KEY', None)
-OPENAI_BASE_URL = os.environ.get('OPENAI_BASE_URL', None)
-OPENAI_API_TYPE = os.environ.get('OPENAI_API_TYPE', None)
-TEMPERATURE = int(os.environ.get('TEMPERATURE', 0))
-STOP = os.environ.get('STOP', "")
-MAX_TOKENS = int(os.environ.get('MAX_TOKENS', 500))
+OPENAI_API_KEY = os.getenv('OPENAI_API_KEY', None)
+OPENAI_BASE_URL = os.getenv('OPENAI_BASE_URL', None)
+OPENAI_API_TYPE = os.getenv('OPENAI_API_TYPE', None)
+TEMPERATURE = int(os.getenv('TEMPERATURE', 0))
+STOP = os.getenv('STOP', "")
+MAX_TOKENS = int(os.getenv('MAX_TOKENS', 500))
 TOP_P = int(os.environ.get('TOP_P', 1))
-FREQUENCY_PENALTY = int(os.environ.get('FREQUENCY_PENALTY', 0))
-PRESENCE_PENALTY = int(os.environ.get('PRESENCE_PENALTY', 0))
-N_RESP = int(os.environ.get('N_RESP', 1))
-TIMEOUT = int(os.environ.get('TIMEOUT', 60))
+FREQUENCY_PENALTY = int(os.getenv('FREQUENCY_PENALTY', 0))
+PRESENCE_PENALTY = int(os.getenv('PRESENCE_PENALTY', 0))
+N_RESP = int(os.getenv('N_RESP', 1))
+TIMEOUT = int(os.getenv('TIMEOUT', 60))
 
 DB_HOST = os.environ.get('DB_HOST', None)
 DB_PORT = os.environ.get('DB_PORT', None)
@@ -223,7 +223,7 @@ def automate_function_call(Creds, sql_key, response_message):
     print(output)
     update_history(response_message, output)
     
-    task_assignment = {
+    arguments = {
 
         "Creds": Creds,
 
@@ -233,30 +233,10 @@ def automate_function_call(Creds, sql_key, response_message):
 
     }
     
-    return json.dumps(task_assignment)
+    return json.dumps(arguments)
 
 
  
-
-# def get_task_done(EmployeeID, Document_type, Document_purpose):
-
-#     """Assign task to employee Sashank"""
-
-
-#     task_assignment = {
-
-#         "Date": current_date,
-
-#         "EmployeeID": EmployeeID,
-
-#         "Document_type": Document_type,
-
-#         "Document_purpose": Document_purpose,
-
-#     }
-
-#     return json.dumps(task_assignment)
-
 
 
  
@@ -295,7 +275,7 @@ def run_conversation(system_prompt, user_prompt):
 
         response = openai.ChatCompletion.create(
 
-            engine="GPT_ChatBot",
+            engine="DIR_GPT4",
 
             messages=messages,
 
@@ -363,7 +343,7 @@ def run_conversation(system_prompt, user_prompt):
 
             second_response = openai.ChatCompletion.create(
 
-                engine="GPT_ChatBot",
+                engine="DIR_GPT4",
 
                 messages=messages,
 
@@ -380,5 +360,6 @@ if OPENAI_API_TYPE == 'azure':
 else:
     openai.api_key = OPENAI_API_KEY
 
+print(openai.api_key)
 
 print(run_conversation(system_prompt, user_prompt))
