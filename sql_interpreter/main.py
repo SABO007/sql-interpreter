@@ -51,7 +51,7 @@ class sqlInterprert():
             str: output of sql query
         """
         try:
-            sql = params['sql']
+            sql = params['sql'] #key
             cur = conn.cursor()
             # Execute a SQL query
             cur.execute(sql)
@@ -187,7 +187,7 @@ class sqlInterprert():
     def main(self):
         steps = 0
         cost = 0
-        self.get_database_info()
+        self.get_database_info() # if results==Null => SQL executed successfully; else => fetch results
         while True:
             response = openai.ChatCompletion.create(
                 engine=self.model,
