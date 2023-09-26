@@ -14,6 +14,9 @@ import time
 
 import datetime
 
+from dotenv import load_dotenv
+
+load_dotenv()
 
 OPENAI_API_KEY = os.getenv('OPENAI_API_KEY', None)
 OPENAI_BASE_URL = os.getenv('OPENAI_BASE_URL', None)
@@ -127,7 +130,7 @@ def automate_function_call(Creds, sql_key, response_message):
         except Exception as e:
             return f"There is some error in SQL query: {str(e)}"
     
-    def get_database_info():
+    def get_database_info(sql_key):
         """Function to get database and table information using sql queries
 
         Returns:
@@ -193,6 +196,9 @@ def automate_function_call(Creds, sql_key, response_message):
         except Exception as e:
             raise e
 
+
+    get_database_info(sql_key)
+
     time.sleep(2)
 
     if json_output == '':
@@ -221,6 +227,7 @@ def automate_function_call(Creds, sql_key, response_message):
     
     output = supported_functions[function_to_perform](function_params)
     print(output)
+    
     update_history(response_message, output)
     
     arguments = {
@@ -233,124 +240,118 @@ def automate_function_call(Creds, sql_key, response_message):
 
     }
     
-    return json.dumps(arguments)
-
-
- 
+    return json.dumps(arguments) 
 
 
  
 
 def run_conversation(system_prompt, user_prompt):
-
-    while(True):
-
-        # Step 1: send the conversation and available functions to GPT
-        messages = [{"role":"system", "content": system_prompt}, {"role":"user", "content": user_prompt}]
-        functions = [
-            {
-                "name": "automate_function_call",
-                "description": "Automate the function calling in such a way that history is updated",
-                "parameters": {
-                    "type": "object",
-                    "properties": {
-                        "Creds": {
-                            "type": "list",
-                            "description": "Credentials for PostGRES which are used in the function using psycopg2 library",
-                        },
-                        "sql_key": {
-                            "type": "string",
-                            "description": "The key for the SQL Query to be executed  "
-                        },
-                        "response_message": {
-                            "type": "string",
-                            "description": "First response of GPT API for system_prompt and user_prompt"
-                        },
+    # Step 1: send the conversation and available functions to GPT
+    messages = [{"role":"system", "content": system_prompt}, {"role":"user", "content": user_prompt}]
+    functions = [
+        {
+            "name": "automate_function_call",
+            "description": "Automate the function calling in such a way that history is updated",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "Creds": {
+                        "type": "list",
+                        "description": "Credentials for PostGRES which are used in the function using psycopg2 library",
                     },
-                    "required": ["Creds", "sql_key", "response_message"]
-                }
-            }, 
+                    "sql_key": {
+                        "type": "string",
+                        "description": "The key for the SQL Query to be executed  "
+                    },
+                    "response_message": {
+                        "type": "string",
+                        "description": "First response of GPT API for system_prompt and user_prompt"
+                    },
+                },
+                "required": ["Creds", "sql_key", "response_message"]
+            }
+        }, 
 
-        ]
+    ]
 
-        response = openai.ChatCompletion.create(
+    response = openai.ChatCompletion.create(
+
+        engine="DIR_GPT4",
+
+        messages=messages,
+
+        temperature=TEMPERATURE,
+
+        max_tokens=MAX_TOKENS,
+
+        top_p=TOP_P,
+
+        frequency_penalty=FREQUENCY_PENALTY,
+        
+        presence_penalty=PRESENCE_PENALTY,
+
+        functions=functions,
+
+        function_call="auto", # Function calling will not automated if it is set as "none"
+
+    )
+
+    response_message = response["choices"][0]["message"]
+
+
+
+
+    if response_message.get("function_call"):
+
+        available_functions = {
+
+            "automate_function_call": automate_function_call,
+
+        }
+
+        function_name = response_message["function_call"]["name"]
+
+        fuction_to_call = available_functions[function_name]
+
+        function_args = json.loads(response_message["function_call"]["arguments"])
+
+        function_response = fuction_to_call(
+
+
+            Creds=function_args.get("Creds"),
+
+            sql_key=function_args.get("sql_key"),
+
+            response_message=function_args.get("response_message"),
+
+        )
+
+        messages.append(response_message)
+
+        messages.append(
+
+            {
+
+                "role": "function",
+
+                "name": function_name,
+
+                "content": function_response,
+
+            }
+
+        )
+
+        second_response = openai.ChatCompletion.create(
 
             engine="DIR_GPT4",
 
             messages=messages,
 
-            temperature=TEMPERATURE,
-
-            max_tokens=MAX_TOKENS,
-
-            top_p=TOP_P,
-
-            frequency_penalty=FREQUENCY_PENALTY,
-            
-            presence_penalty=PRESENCE_PENALTY,
-
-            functions=functions,
-
-            function_call="auto", # Function calling will not automated if it is set as "none"
-
         )
 
-        response_message = response["choices"][0]["message"]
+        return second_response
 
-
-    
-
-        if response_message.get("function_call"):
-
-            available_functions = {
-
-                "automate_function_call": automate_function_call,
-
-            }
-
-            function_name = response_message["function_call"]["name"]
-
-            fuction_to_call = available_functions[function_name]
-
-            function_args = json.loads(response_message["function_call"]["arguments"])
-
-            function_response = fuction_to_call(
-    
-
-                Creds=function_args.get("Creds"),
-
-                sql_key=function_args.get("sql_key"),
-
-                response_message=function_args.get("response_message"),
-
-            )
-
-            messages.append(response_message)
-
-            messages.append(
-
-                {
-
-                    "role": "function",
-
-                    "name": function_name,
-
-                    "content": function_response,
-
-                }
-
-            )
-
-            second_response = openai.ChatCompletion.create(
-
-                engine="DIR_GPT4",
-
-                messages=messages,
-
-            )
-
-            return second_response
-    
 
 if OPENAI_API_TYPE == 'azure':
     openai.api_base = OPENAI_BASE_URL
@@ -360,6 +361,5 @@ if OPENAI_API_TYPE == 'azure':
 else:
     openai.api_key = OPENAI_API_KEY
 
-print(openai.api_key)
 
 print(run_conversation(system_prompt, user_prompt))
