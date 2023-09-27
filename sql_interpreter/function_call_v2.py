@@ -7,13 +7,17 @@ import re
 import json
 from config.envs import OPENAI_API_TYPE, OPENAI_BASE_URL, OPENAI_API_KEY, TEMPERATURE, STOP, MAX_TOKENS, TOP_P, FREQUENCY_PENALTY, PRESENCE_PENALTY, N_RESP, TIMEOUT, DB_HOST, DB_PORT, DB_USER, DB_PASSWORD, DB_NAME
 
-# Function call variables
-PostGREScreds={'Host': DB_HOST, 'Port': DB_PORT, 'User': DB_USER, 'Password': DB_PASSWORD, 'Name': DB_NAME}
+#python function
+python_output="print('Hello World!')"
 
-Creds = list(PostGREScreds.values())
+# Function call dictionaries
+Creds={'Host': DB_HOST, 'Port': DB_PORT, 'User': DB_USER, 'Password': DB_PASSWORD, 'Name': DB_NAME}
 
-sql={"sql":"SELECT table_name, column_name, data_type FROM information_schema.columns WHERE table_schema = 'public';"}
+sql={"sql": f"SELECT execute_python_script('{python_output}');"} #No dynamic change
 
+
+# Function call dictionary keys
+Creds_key = list(Creds.keys())
 
 sql_key = list(sql.keys())
 
@@ -42,7 +46,7 @@ class sqlInterprert():
         self.user_prompt = self.user_prompt.replace('<DateTime>', self.current_time)
 
     
-    def ExecuteSQL(self, sql_key, Creds) -> str:
+    def ExecuteSQL(self, sql_key, Creds_key) -> str:
         """Function to execute SQL query
 
         Args:
@@ -51,15 +55,15 @@ class sqlInterprert():
         Returns:
             str: output of sql query
         """
-
+        
         # Establish a connection to the PostgreSQL server
-        conn = psycopg2.connect(host=Creds[0], database=Creds[4], user=Creds[2], password=Creds[3], port=Creds[1])
+        conn = psycopg2.connect(host=Creds[Creds_key[0]], database=Creds[Creds_key[4]], user=Creds[Creds_key[2]], password=Creds[Creds_key[3]], port=Creds[Creds_key[1]])
 
         try:
-            sql = sql[sql_key[0]]  #0th key
+            sql_query = sql[sql_key[0]]  #0th key
             cur = conn.cursor()
             # Execute a SQL query
-            cur.execute(sql)
+            cur.execute(sql_query)
 
             # Fetch the results
             results = cur.fetchall()
@@ -88,11 +92,21 @@ class sqlInterprert():
         except Exception as e:
             return e
 
-    def automate_function_call(self, Creds, sql_key):
-        function_response =self.ExecuteSQL(sql_key,Creds)
-        function_response = self.ShareOutput(function_response)
-        return function_response
+    def automate_function_call(self, Creds_key, sql_key, function_output):
+        function_output =self.ExecuteSQL(sql_key,Creds_key)
+        function_output = self.ShareOutput(function_output)
 
+        arguments = {
+
+        "Creds_key": Creds_key,
+
+        "sql_key": sql_key,
+
+        "function_output": function_output
+
+        }
+
+        return json.dumps(arguments)
 
     def prepare_history(self, input_json: str, output: str) -> str:
         """Function to prepare history
@@ -156,7 +170,7 @@ class sqlInterprert():
             dict: database info
         """
         try:
-            result = self.ExecuteSQL(sql_key, Creds)
+            result = self.ExecuteSQL(sql_key, Creds_key)
             self.update_history({"function":"ExecuteSQL","parameters":{"sql":"SELECT table_name, column_name, data_type FROM information_schema.columns WHERE table_schema = 'public';"}}, result)
         except Exception as e:
             raise e
@@ -177,6 +191,7 @@ class sqlInterprert():
         elif len(json_output) >= 1:
             json_output = json_output[0]
         
+        # Problem in extracting python code
         json_output = self.extract_outermost_dict(json_output)
         # print(json_output)
         # json_output = json.loads(json_output)
@@ -220,18 +235,19 @@ class sqlInterprert():
             
             output_response = response['choices'][0]['message']['content']
 
-            json_output = self.extract_json(output_response)
-            print(json_output)
+            python_output = self.extract_json(output_response)
+            print("The generated python code: ", python_output)
 
-            time.sleep(2)
 
-            if json_output == '':
+            time.sleep(5)
+
+            if python_output == '':
                 print(output_response)
                 break
 
-            valid_json, output = self.validate_json(json_output)
+            valid_python, output = self.validate_json(python_output)
 
-            if not valid_json:
+            if not valid_python:
                 self.update_history(output_response, output)
                 continue
             
@@ -252,9 +268,11 @@ class sqlInterprert():
                 function_response = fuction_to_call(
 
 
-                    Creds=function_args.get("Creds"),
+                    Creds_key=function_args.get("Creds_key"),
 
                     sql_key=function_args.get("sql_key"),
+
+                    function_output=function_args.get("function_output")
 
                 )
 
@@ -264,16 +282,20 @@ class sqlInterprert():
                     "parameters": {
                         "type": "object",
                         "properties": {
-                            "Creds": {
+                            "Creds_key": {
                                 "type": "list",
-                                "description": "Credentials for PostGRES which are used in the function using psycopg2 library",
+                                "description": "The list of key values for the dictionary Creds. The values of dictionary Creds are the credentials for PostGRES. These credentials are used to connect to a PostGRES server using psycopg2 library",
                             },
                             "sql_key": {
                                 "type": "string",
-                                "description": "The key for the SQL Query to be executed  "
+                                "description": "The list of key values for the dictionary sql. The values of dictionary sql contains the SQL query which is executed on PostGRES server using psycopg2 library"
+                            },
+                            "function_output": {
+                                "type": "string",
+                                "description": "The output of the function 'automate_function_call' after executing two sub-functions 'ExecuteSQL', 'ShareOutput' "
                             },
                         },
-                        "required": ["Creds", "sql_key"]
+                        "required": ["Creds_key", "sql_key"]
                     }
                 }
 
@@ -298,7 +320,8 @@ class sqlInterprert():
 
 
             else:
-                function_output = function_response
+                function_response = json.loads(function_response)
+                function_output = function_response['function_output']
                 break    
 
 
@@ -317,7 +340,8 @@ class sqlInterprert():
 
 if __name__ == "__main__":
     input_prompt = input("Enter the input prompt: ")
-    # input_prompt = "How many executions were done last month?"
+
+    # input_prompt = "Give me a python code to add two numbers"
     max_steps = 20
     max_cost = 0.5
     model = "DIR_GPT4"

@@ -206,7 +206,9 @@ class sqlInterprert():
 
             json_output = self.extract_json(output_response)
             print(json_output)
+
             time.sleep(2)
+
             if json_output == '':
                 print(output_response)
                 break
@@ -224,6 +226,7 @@ class sqlInterprert():
             if function_to_perform == "Exit":
                 break
             
+            #Function calling
             output = self.supported_functions[function_to_perform](function_params)
             print(output)
             self.update_history(output_response, output)
