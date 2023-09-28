@@ -17,7 +17,7 @@ if OPENAI_API_TYPE == 'azure':
     openai.api_base = OPENAI_BASE_URL
     openai.api_key = OPENAI_API_KEY
     openai.api_type = OPENAI_API_TYPE
-    openai.api_version = "2023-03-15-preview"
+    openai.api_version = "2023-07-01-preview"
 else:
     openai.api_key = OPENAI_API_KEY
 
@@ -62,6 +62,7 @@ class sqlInterprert():
             # Close the cursor and connection
             cur.close()
             if results == '':
+                
                 return "PostgresSQL Query executed Successfully"
             else:
                 self.ShareOutput(results)
@@ -228,7 +229,7 @@ class sqlInterprert():
             
             #Function calling
             output = self.supported_functions[function_to_perform](function_params)
-            print(output)
+            print("The output: ", output)
             self.update_history(output_response, output)
 
             steps += 1
