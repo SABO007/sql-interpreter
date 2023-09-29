@@ -229,7 +229,7 @@ class sqlInterprert():
             
             #Function calling
             output = self.supported_functions[function_to_perform](function_params)
-            print("The output: ", output)
+            print("The output of SQL Query: ", output)
             self.update_history(output_response, output)
 
             steps += 1
@@ -245,5 +245,5 @@ if __name__ == "__main__":
     # input_prompt = "How many executions were done last month?"
     max_steps = 20
     max_cost = 0.5
-    model = "DIR_GPT4"
+    model = "DIR_ChatBot"
     sqlInterprert(input_prompt, max_steps, max_cost, model).main()

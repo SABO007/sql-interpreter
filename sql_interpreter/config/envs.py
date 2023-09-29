@@ -7,9 +7,9 @@ if os.environ.get('LOAD_FROM_ENV_FILE', '1') == '1':
 
 # OpenAI config
 OPENAI_API_KEY = os.environ.get('OPENAI_API_KEY', None)
-OPENAI_BASE_URL = os.environ.get('OPENAI_BASE_URL', None)
+OPENAI_BASE_URL = os.environ.get('OPENAI_API_BASE', None)
 OPENAI_API_TYPE = os.environ.get('OPENAI_API_TYPE', None)
-TEMPERATURE = int(os.environ.get('TEMPERATURE', 0))
+TEMPERATURE = float(os.environ.get('TEMPERATURE', 0))
 STOP = os.environ.get('STOP', "")
 MAX_TOKENS = int(os.environ.get('MAX_TOKENS', 500))
 TOP_P = int(os.environ.get('TOP_P', 1))
