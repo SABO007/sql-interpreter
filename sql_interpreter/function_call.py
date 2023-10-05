@@ -17,8 +17,8 @@ class sqlInterprert():
 
     def __init__(self, model):
         self.model = model
-        self.user_prompt = open('config/user_prompt1.txt', 'r').read()
-        self.system_prompt = open('config/system_prompt1.txt', 'r').read()
+        self.user_prompt1 = open('config/user_prompt1.txt', 'r').read()
+        self.system_prompt1 = open('config/system_prompt1.txt', 'r').read()
 
     def ExecuteSQL(self, sql, Creds) -> str:
         """Function to execute SQL query
@@ -84,7 +84,7 @@ class sqlInterprert():
 
     def main(self):
 
-        messages=[{"role":"system", "content":self.system_prompt}, {"role":"user", "content":self.user_prompt}]
+        messages=[{"role":"system", "content":self.system_prompt1}, {"role":"user", "content":self.user_prompt1}]
 
         functions=[
             {
