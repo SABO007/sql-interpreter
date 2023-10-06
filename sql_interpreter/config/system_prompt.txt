@@ -42,9 +42,8 @@ Sample Output:
 Thought: We need to write an PostgresSQL query and execute it to get the output.
 ```
 {
-"function": "ExecuteSQL",
-"parameters": {"sql":"PostgresSQL Query to execute"}
-}
+    "sql": "PostgresSQL Query to execute"}
+
 ```
 
 User Requirement: <input>

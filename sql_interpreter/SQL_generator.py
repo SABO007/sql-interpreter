@@ -17,33 +17,25 @@ if OPENAI_API_TYPE == 'azure':
     openai.api_base = OPENAI_BASE_URL
     openai.api_key = OPENAI_API_KEY
     openai.api_type = OPENAI_API_TYPE
-    openai.api_version = "2023-07-01-preview"
+    openai.api_version = "2023-03-15-preview"
 else:
     openai.api_key = OPENAI_API_KEY
 
-class sqlInterprert():
-    def __init__(self, input_prompt, max_steps, max_cost, model) -> None:
+class SQL_generator():
+    def __init__(self, input_prompt, model) -> None:
         self.input_prompt = input_prompt
-        self.max_steps = max_steps
-        self.max_cost = max_cost
         self.model = model
         self.system_prompt = open('config/system_prompt.txt', 'r').read()
         self.base_user_prompt = open('config/user_prompt.txt', 'r').read()
-        self.user_prompt1 = open('config/user_prompt1.txt', 'r').read()
-        self.system_prompt1 = open('config/system_prompt1.txt', 'r').read()
         self.system_prompt = self.system_prompt.replace('<input>', self.input_prompt)
         self.history = "Empty"
         self.user_prompt = self.base_user_prompt.replace('<history>', self.history[0])
-        self.supported_functions = {
-            "ExecuteSQL": self.ExecuteSQL,
-            "ShareOutput": self.ShareOutput
-        }
         self.current_time = datetime.datetime.now()
         self.current_time = self.current_time.strftime("%Y-%m-%d %H:%M:%S")
         self.user_prompt = self.user_prompt.replace('<DateTime>', self.current_time)
 
     
-    def ExecuteSQL(self, sql) -> str:
+    def ExecuteSQL(self, params) -> str:
         """Function to execute SQL query
 
         Args:
@@ -52,9 +44,8 @@ class sqlInterprert():
         Returns:
             str: output of sql query
         """
-        sql="SELECT * from Employees;"
-
         try:
+            sql = params['sql']
             cur = conn.cursor()
             # Execute a SQL query
             cur.execute(sql)
@@ -148,7 +139,7 @@ class sqlInterprert():
             dict: database info
         """
         try:
-            result = self.ExecuteSQL("SELECT table_name, column_name, data_type FROM information_schema.columns WHERE table_schema = 'public';")
+            result = self.ExecuteSQL({"sql":"SELECT table_name, column_name, data_type FROM information_schema.columns WHERE table_schema = 'public';"})
             self.update_history({"function":"ExecuteSQL","parameters":{"sql":"SELECT table_name, column_name, data_type FROM information_schema.columns WHERE table_schema = 'public';"}}, result)
         except Exception as e:
             raise e
@@ -187,25 +178,11 @@ class sqlInterprert():
             cost = 0
         return cost
     
-    def function_call(self, sql, function_output):
-        function_output =self.ExecuteSQL(sql)
-        function_output = self.ShareOutput(function_output)
-
-        arguments = {
-
-            "sql_key": sql,
-
-            "function_output": function_output
-
-        }
-
-        return json.dumps(arguments)
-    
     def main(self):
         steps = 0
         cost = 0
         self.get_database_info()
-        
+
         response = openai.ChatCompletion.create(
             engine=self.model,
             messages=[{"role":"system", "content":self.system_prompt}, {"role":"user", "content":self.user_prompt}],
@@ -220,112 +197,178 @@ class sqlInterprert():
         )
         
         output_response = response['choices'][0]['message']['content']
-        print(output_response)
+        print("The first output response: ", output_response)
+
         json_output = self.extract_json(output_response)
-        print("The Generated SQL Query: ", json_output)
+        print("The first json output: ", json_output)
 
-        time.sleep(5)
+        SQL=json_output['parameters']['sql']
+        print("The generated SQL query: ", SQL)
 
-        if json_output == '':
-            print(output_response)
 
-        valid_json, output = self.validate_json(json_output)
 
-        if not valid_json:
-            self.update_history(output_response, output)
-        
-        if 'parameters' in json_output:
-            function_params = json_output['parameters']
+# class SQL_executor():
 
-        
-        messages=[{"role":"system", "content":self.system_prompt1}, {"role":"user", "content":self.user_prompt1}]
+#     def __init__(self, model):
+#         self.model = model
+#         self.user_prompt1 = open('config/user_prompt1.txt', 'r').read()
+#         self.system_prompt1 = open('config/system_prompt1.txt', 'r').read()
 
-        functions=[
-            {
-                    "name": "function_call",
-                    "description": "The function which runs the SQL query on Postgres server and give back output",
-                    "parameters": {
-                        "type": "object",
-                        "properties": {
-                            "sql": {
-                                "type": "string",
-                                "description": "The SQL query which is executed on PostGRES server using psycopg2 library"
-                            },
-                            
-                            "function_output": {
-                                "type": "string",
-                                "description": "The output of the function 'automate_function_call' after executing two sub-functions 'ExecuteSQL', 'ShareOutput'. This is the output of the SQL query. "
-                            },
-                        },
-                        "required": ["function_output"]
-                    }
-                }
-                ]
+#     def ExecuteSQL(self, sql, Creds) -> str:
+#         """Function to execute SQL query
+
+#         Args:
+#             sql (str): sql query to execute
+
+#         Returns:
+#             str: output of sql query
+#         """
+#         Creds={'Host': DB_HOST, 'Port': DB_PORT, 'User': DB_USER, 'Password': DB_PASSWORD, 'Name': DB_NAME}
+#         sql="SELECT employeeid FROM employees;"
+
+#         conn = psycopg2.connect(host=Creds['Host'], database=Creds['Name'], user=Creds['User'], password=Creds['Password'], port=Creds['Port'])
+
+#         try:
+#             cur = conn.cursor()
+#             # Execute a SQL query
+#             cur.execute(sql)
+
+#             # Fetch the results
+#             results = cur.fetchall()
+
+#             # Close the cursor and connection
+#             cur.close()
+#             if results == '':
+#                 return "PostgresSQL Query executed Successfully"
+#             else:
+#                 self.ShareOutput(results)
+#                 return results
+#         except Exception as e:
+#             return f"There is some error in SQL query: {str(e)}"
     
-        response = openai.ChatCompletion.create(
-                engine=self.model,
-                messages=messages,
-                functions=functions,
-                temperature=TEMPERATURE,
-            )
+#     def ShareOutput(self, output: str) -> str:
+#         """Function to share output
+
+#         Args:
+#             output (str): output to share
+
+#         Returns:
+#             str: output of sharing output
+#         """
+#         try:
+#             return output
+#         except Exception as e:
+#             return e
+
+#     def function_call(self, sql, Creds, function_output):
+#         function_output =self.ExecuteSQL(sql, Creds)
+#         function_output = self.ShareOutput(function_output)
+
+#         arguments = {
+
+#             "sql_key": sql,
+
+#             "Creds_key": Creds,
+
+#             "function_output": function_output
+
+#         }
+
+#         return json.dumps(arguments)
+
+#     def main(self):
+
+#         messages=[{"role":"system", "content":self.system_prompt1}, {"role":"user", "content":self.user_prompt1}]
+
+#         functions=[
+#             {
+#                     "name": "function_call",
+#                     "description": "The function which runs the SQL query on Postgres server and give back output",
+#                     "parameters": {
+#                         "type": "object",
+#                         "properties": {
+#                             "sql": {
+#                                 "type": "string",
+#                                 "description": "The SQL query which is executed on PostGRES server using psycopg2 library"
+#                             },
+#                             "Creds": {
+#                                 "type": "string",
+#                                 "description": "The string which consists a dictionary. The values of dictionary Creds are the credentials for PostGRES. These credentials are used to connect to a PostGRES server using psycopg2 library to run our SQL command. ",
+#                             },
+
+#                             "function_output": {
+#                                 "type": "string",
+#                                 "description": "The output of the function 'automate_function_call' after executing two sub-functions 'ExecuteSQL', 'ShareOutput'. This is the output of the SQL query. "
+#                             },
+#                         },
+#                         "required": ["function_output"]
+#                     }
+#                 }
+#                 ]
+    
+#         response = openai.ChatCompletion.create(
+#                 engine=self.model,
+#                 messages=messages,
+#                 functions=functions,
+#                 temperature=TEMPERATURE,
+#             )
             
-        output_response2 = response['choices'][0]['message']
+#         output_response = response['choices'][0]['message']
 
-        if output_response2.get("function_call"):
-            available_functions = {
+#         if output_response.get("function_call"):
+#             available_functions = {
 
-                "function_call": self.function_call,
+#                 "function_call": self.function_call,
 
-            }
+#             }
 
-            function_name = output_response2["function_call"]["name"]
+#             function_name = output_response["function_call"]["name"]
 
-            fuction_to_call = available_functions[function_name]
+#             fuction_to_call = available_functions[function_name]
 
-            function_args = json.loads(output_response2["function_call"]["arguments"])
+#             function_args = json.loads(output_response["function_call"]["arguments"])
 
-            function_response = fuction_to_call(
+#             function_response = fuction_to_call(
 
-                sql=function_params,
+#                 sql=function_args.get("sql"),
 
-                function_output=function_args.get("function_output")
+#                 Creds=function_args.get("Creds"),
 
-            )
+#                 function_output=function_args.get("function_output")
 
-            print('function_response: ', function_response)
+#             )
 
-            messages.append(
+#             print('function_response: ', function_response)
 
-                {
+#             # messages.append(output_response)
 
-                    "role": "function",
+#             messages.append(
 
-                    "name": function_name,
+#                 {
 
-                    "content": function_response,
+#                     "role": "function",
 
-                }
+#                     "name": function_name,
 
-            )
+#                     "content": function_response,
 
-            second_response = openai.ChatCompletion.create(
-                            engine=self.model,
-                            messages=messages,
-            ) 
-            output = second_response['choices'][0]['message']['content']
+#                 }
 
+#             )
 
+#             second_response = openai.ChatCompletion.create(
+#                             engine=self.model,
+#                             messages=messages,
+#             ) 
+#             output = second_response['choices'][0]['message']['content']
 
+#             print("\n")
+#             print( output)
 
-            print("The output of SQL Query: ", output)
-            self.update_history(output_response, output)
-
-        
 
 if __name__ == "__main__":
     input_prompt = input("Enter the input prompt: ")
     # input_prompt = "How many executions were done last month?"
-    max_steps = 20
-    max_cost = 0.5
     model = "DIR_ChatBot_FC"
-    sqlInterprert(input_prompt, max_steps, max_cost, model).main()
+    SQL_generator(input_prompt, model).main()
+    # SQL_executor(model).main()       

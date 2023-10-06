@@ -17,7 +17,7 @@ if OPENAI_API_TYPE == 'azure':
     openai.api_base = OPENAI_BASE_URL
     openai.api_key = OPENAI_API_KEY
     openai.api_type = OPENAI_API_TYPE
-    openai.api_version = "2023-07-01-preview"
+    openai.api_version = "2023-03-15-preview"
 else:
     openai.api_key = OPENAI_API_KEY
 
@@ -51,7 +51,7 @@ class sqlInterprert():
             str: output of sql query
         """
         try:
-            sql = params['sql'] #key
+            sql = params['sql']
             cur = conn.cursor()
             # Execute a SQL query
             cur.execute(sql)
@@ -62,7 +62,6 @@ class sqlInterprert():
             # Close the cursor and connection
             cur.close()
             if results == '':
-                
                 return "PostgresSQL Query executed Successfully"
             else:
                 self.ShareOutput(results)
@@ -188,7 +187,7 @@ class sqlInterprert():
     def main(self):
         steps = 0
         cost = 0
-        self.get_database_info() # if results==Null => SQL executed successfully; else => fetch results
+        self.get_database_info()
         while True:
             response = openai.ChatCompletion.create(
                 engine=self.model,
@@ -208,8 +207,6 @@ class sqlInterprert():
             json_output = self.extract_json(output_response)
             print(json_output)
 
-            time.sleep(2)
-
             if json_output == '':
                 print(output_response)
                 break
@@ -224,12 +221,16 @@ class sqlInterprert():
             if 'parameters' in json_output:
                 function_params = json_output['parameters']
 
+            output = self.supported_functions[function_to_perform](function_params)
+
+            if (function_to_perform=='ShareOutput'):
+                print("The Output of the SQL query: ", end=' ')
+                print(output['output']) 
+                break
+
             if function_to_perform == "Exit":
                 break
-            
-            #Function calling
-            output = self.supported_functions[function_to_perform](function_params)
-            print("The output of SQL Query: ", output)
+
             self.update_history(output_response, output)
 
             steps += 1
@@ -245,5 +246,5 @@ if __name__ == "__main__":
     # input_prompt = "How many executions were done last month?"
     max_steps = 20
     max_cost = 0.5
-    model = "DIR_ChatBot"
+    model = "DIR_GPT4"
     sqlInterprert(input_prompt, max_steps, max_cost, model).main()

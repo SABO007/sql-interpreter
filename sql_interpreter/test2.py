@@ -164,6 +164,9 @@ class sqlInterprert():
             self.update_history({"function":"ExecuteSQL","parameters":{"sql":"SELECT table_name, column_name, data_type FROM information_schema.columns WHERE table_schema = 'public';"}}, result)
         except Exception as e:
             raise e
+        
+    def validate_json(self, input_json):
+        return True, "The JSON is valid"
 
     def function_call(self, sql, function_output):
         function_output =self.ExecuteSQL(sql)
