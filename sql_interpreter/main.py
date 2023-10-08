@@ -187,6 +187,7 @@ class sqlInterprert():
     def main(self):
         steps = 0
         cost = 0
+        ExecuteCount=0
         self.get_database_info()
         while True:
             response = openai.ChatCompletion.create(
@@ -220,6 +221,9 @@ class sqlInterprert():
             function_to_perform = json_output['function']
             if 'parameters' in json_output:
                 function_params = json_output['parameters']
+            
+            if (function_to_perform=='ExecuteSQL'):
+                ExecuteCount+=1
 
             output = self.supported_functions[function_to_perform](function_params)
 
@@ -227,6 +231,14 @@ class sqlInterprert():
                 print("The Output of the SQL query: ", end=' ')
                 print(output['output']) 
                 break
+
+            if (ExecuteCount>2):
+                output = self.ShareOutput(output)
+                # print("Success!!")
+                print("The Output of the SQL query: ", end=' ')
+                print(output) 
+                break
+
 
             if function_to_perform == "Exit":
                 break
