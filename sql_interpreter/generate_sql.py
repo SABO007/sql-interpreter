@@ -174,7 +174,7 @@ class Generate_sql():
         steps = 0
         cost = 0
         ExecuteCount=0
-        self.get_database_info()
+        # self.get_database_info()
         
         while True:
             response = openai.ChatCompletion.create(
@@ -226,6 +226,7 @@ class Generate_sql():
                 print("Generated SQL Query: ", sql)
 
                 output=execute_sql_v2.Execute_sql(model_FC, sql).main()
+                self.system_prompt_gen = self.system_prompt_gen.replace('<output>', output)
 
             if (ExecuteCount>2):
                 print(output) 
@@ -242,10 +243,15 @@ class Generate_sql():
         
 
 if __name__ == "__main__":
-    input_prompt = input("Enter the input prompt: ")
-    # input_prompt = "How many executions were done last month?"
-    max_steps = 20
-    max_cost = 0.5
-    model = "DIR_GPT4"
-    model_FC = "DIR_ChatBot_FC"
-    Generate_sql(input_prompt, max_steps, max_cost, model, model_FC).main()
+
+    while True:
+        input_prompt = input("Enter the input prompt: ")
+        if input_prompt:
+            max_steps = 20
+            max_cost = 0.5
+            model = "DIR_ChatBot"
+            model_FC = "DIR_ChatBot_FC"
+            Generate_sql(input_prompt, max_steps, max_cost, model, model_FC).main()
+            break
+        else:
+            print("Input cannot be null. Please try again.")
