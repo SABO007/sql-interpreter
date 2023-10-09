@@ -33,10 +33,6 @@ class Generate_sql():
         self.system_prompt_gen = self.system_prompt_gen.replace('<input>', self.input_prompt)
         self.history = "Empty"
         self.user_prompt_gen = self.base_user_prompt_gen.replace('<history>', self.history[0])
-        self.supported_functions = {
-            "ExecuteSQL": self.ExecuteSQL,
-            "ShareOutput": self.ShareOutput
-        }
         self.current_time = datetime.datetime.now()
         self.current_time = self.current_time.strftime("%Y-%m-%d %H:%M:%S")
         self.user_prompt_gen = self.user_prompt_gen.replace('<DateTime>', self.current_time)
@@ -69,20 +65,6 @@ class Generate_sql():
                 return results
         except Exception as e:
             return f"There is some error in SQL query: {str(e)}"
-    
-    def ShareOutput(self, output: str) -> str:
-        """Function to share output
-
-        Args:
-            output (str): output to share
-
-        Returns:
-            str: output of sharing output
-        """
-        try:
-            return output
-        except Exception as e:
-            return e
 
     def prepare_history(self, input_json: str, output: str) -> str:
         """Function to prepare history
