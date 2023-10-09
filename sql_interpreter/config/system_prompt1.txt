@@ -22,10 +22,7 @@ Thought: We need to execute a PostgresSQL query to get the output.
 {
 "function": "function_call",
 "parameters": {
-                    "Creds_key": Creds_key,
-
-                    "sql_key": sql_key,
-
+                    "sql": "PostgresSQL Query",
                     "function_output": "Output after executing PostgresSQL Query"
                 }
 }
