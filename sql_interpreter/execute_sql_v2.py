@@ -15,10 +15,11 @@ else:
 
 class Execute_sql():
 
-    def __init__(self, model):
+    def __init__(self, model, sql):
         self.model = model
-        self.user_prompt1 = open('config/user_prompt1.txt', 'r').read()
-        self.system_prompt1 = open('config/system_prompt1.txt', 'r').read()
+        self.sql=sql
+        self.user_prompt_exe = open('config/user_prompt_exe.txt', 'r').read()
+        self.system_prompt_exe = open('config/system_prompt_exe.txt', 'r').read()
 
     def ExecuteSQL(self, sql) -> str:
         """Function to execute SQL query
@@ -77,9 +78,9 @@ class Execute_sql():
 
         return json.dumps(arguments)
 
-    def main(self, sql):
+    def main(self):
 
-        messages=[{"role":"system", "content":self.system_prompt1}, {"role":"user", "content":self.user_prompt1}]
+        messages=[{"role":"system", "content":self.system_prompt_exe}, {"role":"user", "content":self.user_prompt_exe}]
 
         functions=[
             
@@ -138,7 +139,7 @@ class Execute_sql():
             )
             
         output_response = response['choices'][0]['message']
-        print(output_response)
+        # print(output_response)
 
         if output_response.get("function_call"):
             available_functions = {
@@ -159,13 +160,13 @@ class Execute_sql():
 
                 function_response = fuction_to_call(
 
-                    sql=sql,
+                    sql=self.sql,
 
                     function_output=function_args.get("function_output")
 
                 )
 
-                print('function_response: ', function_response)
+                # print('function_response: ', function_response)
 
                 messages.append(
 
@@ -187,13 +188,15 @@ class Execute_sql():
             ) 
             output = second_response['choices'][0]['message']['content']
 
-            print( output)
+            return output
 
 
 if __name__ == "__main__":
     model = "DIR_ChatBot_FC"
     
     sql="SELECT * from Employees;"
-    Execute_sql(model).main(sql)       
+
+    output=Execute_sql(model, sql).main()
+    print(output)  
 
 
