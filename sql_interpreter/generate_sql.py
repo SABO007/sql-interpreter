@@ -23,11 +23,12 @@ else:
     openai.api_key = OPENAI_API_KEY
 
 class Generate_sql():
-    def __init__(self, input_prompt, max_steps, max_cost, model) -> None:
+    def __init__(self, input_prompt, max_steps, max_cost, model, model_FC) -> None:
         self.input_prompt = input_prompt
         self.max_steps = max_steps
         self.max_cost = max_cost
         self.model = model
+        self.model_FC=model_FC
         self.system_prompt_gen = open('config/system_prompt_gen.txt', 'r').read()
         self.base_user_prompt_gen = open('config/user_prompt_gen.txt', 'r').read()
         self.system_prompt_gen = self.system_prompt_gen.replace('<input>', self.input_prompt)
@@ -38,7 +39,7 @@ class Generate_sql():
         self.user_prompt_gen = self.user_prompt_gen.replace('<DateTime>', self.current_time)
 
     
-    def ExecuteSQL(self, params) -> str:
+    def ExecuteSQL(self, sql) -> str:
         """Function to execute SQL query
 
         Args:
@@ -47,8 +48,9 @@ class Generate_sql():
         Returns:
             str: output of sql query
         """
+        conn = psycopg2.connect(host=DB_HOST, database=DB_NAME, user=DB_USER, password=DB_PASSWORD, port=DB_PORT)
+
         try:
-            sql = params['sql']
             cur = conn.cursor()
             # Execute a SQL query
             cur.execute(sql)
@@ -65,6 +67,7 @@ class Generate_sql():
                 return results
         except Exception as e:
             return f"There is some error in SQL query: {str(e)}"
+    
 
     def prepare_history(self, input_json: str, output: str) -> str:
         """Function to prepare history
@@ -128,8 +131,8 @@ class Generate_sql():
             dict: database info
         """
         try:
-            result = self.ExecuteSQL({"sql":"SELECT table_name, column_name, data_type FROM information_schema.columns WHERE table_schema = 'public';"})
-            self.update_history({"function":"ExecuteSQL","parameters":{"sql":"SELECT table_name, column_name, data_type FROM information_schema.columns WHERE table_schema = 'public';"}}, result)
+            result = self.ExecuteSQL("SELECT table_name, column_name, data_type FROM information_schema.columns WHERE table_schema = 'public';")
+            self.update_history({"sql":"SELECT table_name, column_name, data_type FROM information_schema.columns WHERE table_schema = 'public';"}, result)
         except Exception as e:
             raise e
 
@@ -172,6 +175,7 @@ class Generate_sql():
         cost = 0
         ExecuteCount=0
         self.get_database_info()
+        
         while True:
             response = openai.ChatCompletion.create(
                 engine=self.model,
@@ -201,32 +205,30 @@ class Generate_sql():
                 self.update_history(output_response, output)
                 continue
             
-            function_to_perform = json_output['function']
-            if 'parameters' in json_output:
-                function_params = json_output['parameters']
+            # function_to_perform = json_output['function']
+            # if 'parameters' in json_output:
+            #     function_params = json_output['parameters']
             
-            if (function_to_perform=='ExecuteSQL'):
-                ExecuteCount+=1
+            # if (function_to_perform=='ExecuteSQL'):
+                # ExecuteCount+=1
 
-            sql=function_params['sql']
-            print("Generated SQL Query: ", sql)
-
-            engine="DIR_ChatBot_FC"
-            output=execute_sql_v2.Execute_sql(engine, sql).main()
-
+            print(f"Iteration {ExecuteCount+1}")
             ExecuteCount+=1
-            print(output)
-        
-            # output = self.supported_functions[function_to_perform](function_params)
 
-            if (ExecuteCount>3):
-                print("The Output of the SQL query: ", end=' ')
+            if json_output['sql']:
+                sql=json_output['sql']
+                print("Generated SQL Query: ", sql)
+
+                output=execute_sql_v2.Execute_sql(model_FC, sql).main()
+
+            elif json_output['query']:
+                sql=json_output['query']
+                print("Generated SQL Query: ", sql)
+
+                output=execute_sql_v2.Execute_sql(model_FC, sql).main()
+
+            if (ExecuteCount>2):
                 print(output) 
-                break
-
-
-
-            if function_to_perform == "Exit":
                 break
 
             self.update_history(output_response, output)
@@ -245,4 +247,5 @@ if __name__ == "__main__":
     max_steps = 20
     max_cost = 0.5
     model = "DIR_GPT4"
-    Generate_sql(input_prompt, max_steps, max_cost, model).main()
+    model_FC = "DIR_ChatBot_FC"
+    Generate_sql(input_prompt, max_steps, max_cost, model, model_FC).main()
