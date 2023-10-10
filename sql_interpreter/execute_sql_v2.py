@@ -14,7 +14,6 @@ else:
 
 
 class Execute_sql():
-
     def __init__(self, model, sql):
         self.model = model
         self.sql=sql
@@ -64,19 +63,9 @@ class Execute_sql():
         except Exception as e:
             return e
 
-    def function_call(self, sql, function_output):
+    def function_call(self, sql):
         function_output =self.ExecuteSQL(sql)
-        function_output = self.ShareOutput(function_output)
-
-        arguments = {
-
-            "sql_key": sql,
-
-            "function_output": function_output
-
-        }
-
-        return json.dumps(arguments)
+        return function_output
     
     def _get_cost_from_usage(self, usage):
         if self.model == "DIR_ChatBot":
@@ -112,43 +101,20 @@ class Execute_sql():
                                 "name": "function_call",
                                 "description": "The function which runs the SQL query on Postgres server and give back output",
                                 "parameters": {
-                                "type": "object",
-                                "properties": {
-                                    "sql": {
-                                        "type": "string",
-                                        "description": "The SQL query which is executed on PostGRES server using psycopg2 library"
-                                    },
-                                    "function_output": {
-                                        "type": "string",
-                                        "description": "The output of the function 'automate_function_call' after executing two sub-functions 'ExecuteSQL', 'ShareOutput'. This is the output of the SQL query. "
-                                    },
-                                },
-                                "required": ["function_output"]
-                            }
-                            },
-                            "costing_execution": {
-                                "name": "costing_execution",
-                                "description": "Get cost of the execution",
-                                "parameters": {
                                     "type": "object",
                                     "properties": {
-                                        "response": {
-                                            "type": "string",
-                                            "description": "The output of API call",
-                                        },
-                                          "cost": {
-                                            "type": "integer",
-                                            "description": "The cost for the API call",
-                                        },
+                                            "sql": {
+                                                "type": "string",
+                                                "description": "The SQL query which is executed on PostGRES server using psycopg2 library"
+                                            },
                                     },
-                                    "required": ["cost"],
+                                    "required": ["sql"]
                                 }
                             }
-                        }, 
-                        "required": ["function_call"],
+                        }
                     }
-                }
-                ]
+                },
+            ]
     
         response = openai.ChatCompletion.create(
                 engine=self.model,
@@ -158,7 +124,7 @@ class Execute_sql():
             )
 
         output_response = response['choices'][0]['message']
-        # print(output_response)
+        print(output_response)
 
         # Costing
         cost=self.costing_execution(response, cost)
@@ -167,7 +133,6 @@ class Execute_sql():
             available_functions = {
 
                 "function_call": self.function_call,
-                "costing_execution": self.costing_execution,
 
             }
             functions_list=json.loads(output_response["function_call"]["arguments"])
@@ -180,33 +145,30 @@ class Execute_sql():
 
                 fuction_to_call = available_functions[function_name]
 
-                function_args = arguments[i]
+                # function_args = arguments[i]
 
-                
-                if (function_name=='function_call'):
+                function_response = fuction_to_call(
 
-                    function_response = fuction_to_call(
-
-                        sql=self.sql,
-
-                        function_output=function_args.get("function_output")
-
-                    )
-
-                else:
-                    function_response = fuction_to_call(
-
-                        cost=function_args.get("cost"),
-
-                        response=response
-
-                    )
-
+                    sql=self.sql,
+                )
 
                 # print('function_response: ', function_response)
-
                 messages.append(
+                    {
+                        "role": "assistant",
 
+                        "function_call": 
+                        {
+                            "name": function_name,
+
+                            "arguments": functions_list,
+
+                        },
+
+                        "content": "",
+                    }
+                )
+                messages.append(
                     {
 
                         "role": "function",

@@ -1,9 +1,6 @@
 import datetime
-import time
 import ast
 import openai
-import os
-import math
 import psycopg2
 import re
 import json
@@ -61,10 +58,10 @@ class Generate_sql():
             # Close the cursor and connection
             cur.close()
             if results == '':
-                return "PostgresSQL Query executed Successfully"
+                return "PostgresSQL Query executed Successfully", 0
             else:
-                self.ShareOutput(results)
-                return results
+                # self.ShareOutput(results)
+                return f"{results}", 0
         except Exception as e:
             return f"There is some error in SQL query: {str(e)}"
     
@@ -153,13 +150,12 @@ class Generate_sql():
             json_output = json_output[0]
         
         json_output = self.extract_outermost_dict(json_output)
-        # print(json_output)
         # json_output = json.loads(json_output)
         return json_output
 
     def _get_cost_from_usage(self, usage):
         if self.model == "DIR_ChatBot":
-            cost = usage["totel_tokens"] * 0.00002
+            cost = usage["total_tokens"] * 0.00002
         elif self.model == "DIR_ChatBot_FC":
             cost = usage["total_tokens"] * 0.000002
         elif self.model == "DIR_GPT4":
@@ -171,16 +167,33 @@ class Generate_sql():
         return cost
     
     def main(self):
-        steps = 0
-        cost = 0
+        steps = 0 
+        cost = 0 
         ExecuteCount=0
-        # self.get_database_info()
-        
+        self.get_database_info()
+        messages=[{"role":"system", "content":self.system_prompt_gen}, {"role":"user", "content":self.input_prompt}]
+        functions=[
+             {
+                    "name": "ExecuteSQL",
+                    "description": "The function which runs the SQL query on Postgres server and give back output",
+                    "parameters": {
+                        "type": "object",
+                        "properties": {
+                            "sql": {
+                                "type": "string",
+                                "description": "The SQL query to be executed on Postgres server",
+                                },
+                            },
+                            "required": ["sql"]
+                    }
+            }
+        ]
         while True:
             response = openai.ChatCompletion.create(
                 engine=self.model,
-                messages=[{"role":"system", "content":self.system_prompt_gen}, {"role":"user", "content":self.user_prompt_gen}],
+                messages=messages,
                 temperature=TEMPERATURE,
+                functions=functions,
                 max_tokens=MAX_TOKENS,
                 top_p=TOP_P,
                 frequency_penalty=FREQUENCY_PENALTY,
@@ -190,41 +203,51 @@ class Generate_sql():
                 n=N_RESP
             )
             
-            output_response = response['choices'][0]['message']['content']
+            output_response = response['choices'][0]['message']
+            if "function_call" in output_response:
+                try:
+                    json_output = json.loads(output_response['function_call']['arguments'])
+                    if json_output['sql']:
+                        sql=json_output['sql']
+                        print("Generated SQL Query: ", sql)
 
-            json_output = self.extract_json(output_response)
-            print(json_output)
+                        output_cost=self.ExecuteSQL(sql)
 
-            if json_output == '':
-                print(output_response)
-                break
+                    elif json_output['query']:
+                        sql=json_output['query']
+                        print("Generated SQL Query: ", sql)
+                        output_cost=self.ExecuteSQL(sql)
 
-            valid_json, output = self.validate_json(json_output)
+                        # output_cost=execute_sql_v2.Execute_sql(model_FC, sql).main()
 
-            if not valid_json:
-                self.update_history(output_response, output)
-                continue 
+            
+                except:
+                    messages.append(
+                        {
+                            "role": "assistant",
+
+                            "content": output
+                        }
+                    )
+                    output_cost=(output, 0)
+                    continue
+            else:
+                print(output_response['content'])
+                messages.append(
+                        {
+                            "role": "assistant",
+
+                            "content": output_response['content']
+                        }
+                    )
+                output_cost=(output_response['content'], 0)
+
 
             print(f"Iteration {ExecuteCount+1}")
 
-            if json_output['sql']:
-                sql=json_output['sql']
-                print("Generated SQL Query: ", sql)
-
-                output_cost=execute_sql_v2.Execute_sql(model_FC, sql).main()
-
-            elif json_output['query']:
-                sql=json_output['query']
-                print("Generated SQL Query: ", sql)
-
-                output_cost=execute_sql_v2.Execute_sql(model_FC, sql).main()
             
             output=output_cost[0]
             cost_exe=output_cost[1]
-
-            # self.system_prompt_gen = self.system_prompt_gen.replace('<output>', output)
-
-            self.update_history(output_response, output)
 
             steps += 1
             cost += self._get_cost_from_usage(response['usage']) + cost_exe
@@ -238,7 +261,7 @@ class Generate_sql():
 
             if cost >= self.max_cost:
                 break
-            if steps >= self.max_steps:
+            if steps >= self.max_steps:     
                 break
         
 
@@ -249,7 +272,7 @@ if __name__ == "__main__":
         if input_prompt:
             max_steps = 20
             max_cost = 0.5
-            model = "DIR_GPT4"
+            model = "DIR_ChatBot_FC"
             model_FC = "DIR_ChatBot_FC"
             Generate_sql(input_prompt, max_steps, max_cost, model, model_FC).main()
             break
