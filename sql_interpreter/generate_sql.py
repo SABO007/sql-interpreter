@@ -226,7 +226,7 @@ class Generate_sql():
                 print("Generated SQL Query: ", sql)
 
                 output=execute_sql_v2.Execute_sql(model_FC, sql).main()
-                self.system_prompt_gen = self.system_prompt_gen.replace('<output>', output)
+                # self.system_prompt_gen = self.system_prompt_gen.replace('<output>', output)
 
             if (ExecuteCount>2):
                 print(output) 
@@ -249,7 +249,7 @@ if __name__ == "__main__":
         if input_prompt:
             max_steps = 20
             max_cost = 0.5
-            model = "DIR_ChatBot"
+            model = "DIR_GPT4"
             model_FC = "DIR_ChatBot_FC"
             Generate_sql(input_prompt, max_steps, max_cost, model, model_FC).main()
             break
