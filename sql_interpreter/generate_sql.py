@@ -158,11 +158,11 @@ class Generate_sql():
         return json_output
 
     def _get_cost_from_usage(self, usage):
-        if self.model == "text-davinci-003":
+        if self.model == "DIR_ChatBot":
             cost = usage["totel_tokens"] * 0.00002
-        elif self.model == "gpt-3.5-turbo":
+        elif self.model == "DIR_ChatBot_FC":
             cost = usage["total_tokens"] * 0.000002
-        elif self.model == "gpt-4":
+        elif self.model == "DIR_GPT4":
             cost = (usage["prompt_tokens"] * 0.00003) + (
                 usage["completion_tokens"] * 0.00006
             )
@@ -203,39 +203,39 @@ class Generate_sql():
 
             if not valid_json:
                 self.update_history(output_response, output)
-                continue
-            
-            # function_to_perform = json_output['function']
-            # if 'parameters' in json_output:
-            #     function_params = json_output['parameters']
-            
-            # if (function_to_perform=='ExecuteSQL'):
-                # ExecuteCount+=1
+                continue 
 
             print(f"Iteration {ExecuteCount+1}")
-            ExecuteCount+=1
 
             if json_output['sql']:
                 sql=json_output['sql']
                 print("Generated SQL Query: ", sql)
 
-                output=execute_sql_v2.Execute_sql(model_FC, sql).main()
+                output_cost=execute_sql_v2.Execute_sql(model_FC, sql).main()
 
             elif json_output['query']:
                 sql=json_output['query']
                 print("Generated SQL Query: ", sql)
 
-                output=execute_sql_v2.Execute_sql(model_FC, sql).main()
-                # self.system_prompt_gen = self.system_prompt_gen.replace('<output>', output)
+                output_cost=execute_sql_v2.Execute_sql(model_FC, sql).main()
+            
+            output=output_cost[0]
+            cost_exe=output_cost[1]
+
+            # self.system_prompt_gen = self.system_prompt_gen.replace('<output>', output)
+
+            self.update_history(output_response, output)
+
+            steps += 1
+            cost += self._get_cost_from_usage(response['usage']) + cost_exe
+            print(f'Overall Cost for Iteration {ExecuteCount+1}: ', cost)
+
+            ExecuteCount+=1
 
             if (ExecuteCount>2):
                 print(output) 
                 break
 
-            self.update_history(output_response, output)
-
-            steps += 1
-            cost += self._get_cost_from_usage(response['usage'])
             if cost >= self.max_cost:
                 break
             if steps >= self.max_steps:

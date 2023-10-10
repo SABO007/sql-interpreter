@@ -77,9 +77,27 @@ class Execute_sql():
         }
 
         return json.dumps(arguments)
+    
+    def _get_cost_from_usage(self, usage):
+        if self.model == "DIR_ChatBot":
+            cost = usage["totel_tokens"] * 0.00002
+        elif self.model == "DIR_ChatBot_FC":
+            cost = usage["total_tokens"] * 0.000002
+        elif self.model == "DIR_GPT4":
+            cost = (usage["prompt_tokens"] * 0.00003) + (
+                usage["completion_tokens"] * 0.00006
+            )
+        else:
+            cost = 0
+        return cost
+
+    def costing_execution(self, response, cost):
+        cost += self._get_cost_from_usage(response['usage'])
+        return cost
+        
 
     def main(self):
-
+        cost = 0
         messages=[{"role":"system", "content":self.system_prompt_exe}, {"role":"user", "content":self.user_prompt_exe}]
 
         functions=[
@@ -108,25 +126,26 @@ class Execute_sql():
                                 "required": ["function_output"]
                             }
                             },
-                            # "second_function": {
-                            #     "name": "get_Events",
-                            #     "description": "Get events for the location at specified date",
-                            #     "parameters": {
-                            #         "type": "object",
-                            #         "properties": {
-                            #             "location": {
-                            #                 "type": "string",
-                            #                 "description": "The city and state, e.g. San Francisco, CA",
-                            #             },
-                            #             "date": {
-                            #                 "type": "string",
-                            #                 "description": "The date of the event, e.g. 2021-01-01."
-                            #             }
-                            #         },
-                            #         "required": ["location", "date"],
-                            #     }
-                            # }
-                        }, "required": ["function_call"],
+                            "costing_execution": {
+                                "name": "costing_execution",
+                                "description": "Get cost of the execution",
+                                "parameters": {
+                                    "type": "object",
+                                    "properties": {
+                                        "response": {
+                                            "type": "string",
+                                            "description": "The output of API call",
+                                        },
+                                          "cost": {
+                                            "type": "integer",
+                                            "description": "The cost for the API call",
+                                        },
+                                    },
+                                    "required": ["cost"],
+                                }
+                            }
+                        }, 
+                        "required": ["function_call"],
                     }
                 }
                 ]
@@ -137,34 +156,52 @@ class Execute_sql():
                 functions=functions,
                 temperature=TEMPERATURE,
             )
-            
+
         output_response = response['choices'][0]['message']
         # print(output_response)
+
+        # Costing
+        cost=self.costing_execution(response, cost)
 
         if output_response.get("function_call"):
             available_functions = {
 
                 "function_call": self.function_call,
+                "costing_execution": self.costing_execution,
 
             }
             functions_list=json.loads(output_response["function_call"]["arguments"])
             functions = list(functions_list.keys())
             arguments = list(functions_list.values())
             n=len(functions)
-            for i in range(n):
+
+            for i in range(0,n):
                 function_name = functions[i]
 
                 fuction_to_call = available_functions[function_name]
 
                 function_args = arguments[i]
 
-                function_response = fuction_to_call(
+                
+                if (function_name=='function_call'):
 
-                    sql=self.sql,
+                    function_response = fuction_to_call(
 
-                    function_output=function_args.get("function_output")
+                        sql=self.sql,
 
-                )
+                        function_output=function_args.get("function_output")
+
+                    )
+
+                else:
+                    function_response = fuction_to_call(
+
+                        cost=function_args.get("cost"),
+
+                        response=response
+
+                    )
+
 
                 # print('function_response: ', function_response)
 
@@ -188,7 +225,7 @@ class Execute_sql():
             ) 
             output = second_response['choices'][0]['message']['content']
 
-            return output
+            return output, cost
 
 
 if __name__ == "__main__":
