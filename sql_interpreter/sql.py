@@ -4,8 +4,9 @@ import openai
 import psycopg2
 import re
 import json
+from tabulate import tabulate
+from prettytable import PrettyTable 
 from config.envs import OPENAI_API_TYPE, OPENAI_BASE_URL, OPENAI_API_KEY, TEMPERATURE, STOP, MAX_TOKENS, TOP_P, FREQUENCY_PENALTY, PRESENCE_PENALTY, N_RESP, TIMEOUT, DB_HOST, DB_PORT, DB_USER, DB_PASSWORD, DB_NAME
-import execute_sql_v2
 
 # Establish a connection to the PostgreSQL server
 conn = psycopg2.connect(host=DB_HOST, database=DB_NAME, user=DB_USER, password=DB_PASSWORD, port=DB_PORT)
@@ -19,21 +20,13 @@ if OPENAI_API_TYPE == 'azure':
 else:
     openai.api_key = OPENAI_API_KEY
 
-class Generate_sql():
-    def __init__(self, input_prompt, max_steps, max_cost, model, model_FC) -> None:
+class SQL_Interpreter():
+    def __init__(self, input_prompt, max_steps, max_cost, model) -> None:
         self.input_prompt = input_prompt
         self.max_steps = max_steps
         self.max_cost = max_cost
         self.model = model
-        self.model_FC=model_FC
-        self.system_prompt_gen = open('config/system_prompt_gen.txt', 'r').read()
-        self.base_user_prompt_gen = open('config/user_prompt_gen.txt', 'r').read()
-        self.system_prompt_gen = self.system_prompt_gen.replace('<input>', self.input_prompt)
-        self.history = "Empty"
-        self.user_prompt_gen = self.base_user_prompt_gen.replace('<history>', self.history[0])
-        self.current_time = datetime.datetime.now()
-        self.current_time = self.current_time.strftime("%Y-%m-%d %H:%M:%S")
-        self.user_prompt_gen = self.user_prompt_gen.replace('<DateTime>', self.current_time)
+        self.system_prompt = open('config/system_prompt.txt', 'r').read()
 
     
     def ExecuteSQL(self, sql) -> str:
@@ -57,71 +50,23 @@ class Generate_sql():
 
             # Close the cursor and connection
             cur.close()
-            if results == '':
-                return "PostgresSQL Query executed Successfully", 0
+            if not results:
+                return "PostgresSQL Query executed Successfully"
             else:
-                # self.ShareOutput(results)
-                return f"{results}", 0
+                headers = [desc[0] for desc in cur.description]
+                rows = [list(row) for row in results]
+                table = tabulate(rows, headers=headers, tablefmt="pipe")
+                return f"```\n{table}\n```"
+
         except Exception as e:
             return f"There is some error in SQL query: {str(e)}"
     
 
-    def prepare_history(self, input_json: str, output: str) -> str:
-        """Function to prepare history
-
-        Args:
-            input_prompt (str): input prompt
-            output (str): output
-
-        Returns:
-            str: output of preparing history
-        """
-        try:
-            return f"Assistant Response-\n{input_json}\nExecution Output-\n{output}\n"
-        except Exception as e:
-            raise e
-
-    def update_history(self, input_json: str, output: str) -> str:
-        """
-        Function to update history
-
-        Args:
-            input_prompt (str): input prompt
-            output (str): output
-
-        Returns:
-            str: output of updating history
-        """
-        try:
-            history = self.prepare_history(input_json, output)
-            if self.history == "Empty":
-                self.history = [history]
-            else:
-                self.history.append(history)
-            
-            for ind, his in enumerate(self.history, start=1):
-                history += f"{ind}. {his}\n"
-
-            self.user_prompt_gen = self.base_user_prompt_gen.replace('<history>', f"[{history}]")
-        except Exception as e:
-            raise e
-
     def validate_json(self, input_json):
         return True, "The JSON is valid"
 
-    def extract_outermost_dict(self, s):
-        for i in range(len(s)):
-            for j in range(i, len(s)):
-                substring = s[i:j+1]
-                try:
-                    node = ast.literal_eval(substring)
-                    if isinstance(node, dict):
-                        return node
-                except (ValueError, SyntaxError):
-                    pass
-        return None
 
-    def get_database_info(self):
+    def get_database_info(self, system_prompt):
         """Function to get database and table information using sql queries
 
         Returns:
@@ -129,29 +74,11 @@ class Generate_sql():
         """
         try:
             result = self.ExecuteSQL("SELECT table_name, column_name, data_type FROM information_schema.columns WHERE table_schema = 'public';")
-            self.update_history({"sql":"SELECT table_name, column_name, data_type FROM information_schema.columns WHERE table_schema = 'public';"}, result)
+            system_prompt = system_prompt.replace('<table_info>', f"{result}")
+            return system_prompt
         except Exception as e:
             raise e
 
-    def extract_json(self, output_response):
-        """Function to extract JSON from the output response. The JSON is within triple bacticks
-
-        Args:
-            output_response (str): output response
-
-        Returns:
-            dict: json
-        """
-        json_output = re.findall(r"```([\s\S]*?)```", output_response)
-
-        if len(json_output) == 0:
-            return ''
-        elif len(json_output) >= 1:
-            json_output = json_output[0]
-        
-        json_output = self.extract_outermost_dict(json_output)
-        # json_output = json.loads(json_output)
-        return json_output
 
     def _get_cost_from_usage(self, usage):
         if self.model == "DIR_ChatBot":
@@ -170,8 +97,8 @@ class Generate_sql():
         steps = 0 
         cost = 0 
         ExecuteCount=0
-        self.get_database_info()
-        messages=[{"role":"system", "content":self.system_prompt_gen}, {"role":"user", "content":self.input_prompt}]
+        self.system_prompt=self.get_database_info(self.system_prompt)
+        messages=[{"role":"system", "content":self.system_prompt}, {"role":"user", "content":self.input_prompt}]
         functions=[
              {
                     "name": "ExecuteSQL",
@@ -188,6 +115,8 @@ class Generate_sql():
                     }
             }
         ]
+
+
         while True:
             response = openai.ChatCompletion.create(
                 engine=self.model,
@@ -210,15 +139,16 @@ class Generate_sql():
                     if json_output['sql']:
                         sql=json_output['sql']
                         print("Generated SQL Query: ", sql)
-
-                        output_cost=self.ExecuteSQL(sql)
+                        output=self.ExecuteSQL(sql)
 
                     elif json_output['query']:
                         sql=json_output['query']
                         print("Generated SQL Query: ", sql)
-                        output_cost=self.ExecuteSQL(sql)
+                        output=self.ExecuteSQL(sql)
 
-                        # output_cost=execute_sql_v2.Execute_sql(model_FC, sql).main()
+                    steps += 1
+                    cost += self._get_cost_from_usage(response['usage'])
+
 
             
                 except:
@@ -229,8 +159,8 @@ class Generate_sql():
                             "content": output
                         }
                     )
-                    output_cost=(output, 0)
                     continue
+                
             else:
                 print(output_response['content'])
                 messages.append(
@@ -240,23 +170,21 @@ class Generate_sql():
                             "content": output_response['content']
                         }
                     )
-                output_cost=(output_response['content'], 0)
-
-
+                output=output_response['content']
+                
+            print("---------------")
+            print("---------------")
             print(f"Iteration {ExecuteCount+1}")
-
-            
-            output=output_cost[0]
-            cost_exe=output_cost[1]
-
-            steps += 1
-            cost += self._get_cost_from_usage(response['usage']) + cost_exe
+            print("---------------")
             print(f'Overall Cost for Iteration {ExecuteCount+1}: ', cost)
+            print("--------------------------------------------")
 
             ExecuteCount+=1
 
             if (ExecuteCount>2):
-                print(output) 
+                print(f"The output after executing the SQL Query \"{sql}\": ") 
+                print(output)
+                print("--------------------------------------------")
                 break
 
             if cost >= self.max_cost:
@@ -273,8 +201,7 @@ if __name__ == "__main__":
             max_steps = 20
             max_cost = 0.5
             model = "DIR_ChatBot_FC"
-            model_FC = "DIR_ChatBot_FC"
-            Generate_sql(input_prompt, max_steps, max_cost, model, model_FC).main()
+            SQL_Interpreter(input_prompt, max_steps, max_cost, model).main()
             break
         else:
             print("Input cannot be null. Please try again.")
