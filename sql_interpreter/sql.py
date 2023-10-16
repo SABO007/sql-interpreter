@@ -26,7 +26,9 @@ class SQL_Interpreter():
         self.max_steps = max_steps
         self.max_cost = max_cost
         self.model = model
-        self.system_prompt = open('config/system_prompt.txt', 'r').read()
+        self.system_prompt = open('config/system_prompt1.txt', 'r').read()
+        self.user_prompt = open('config/user_prompt.txt', 'r').read()
+        self.user_prompt = self.user_prompt.replace('<input>', self.input_prompt)
 
     
     def ExecuteSQL(self, sql) -> str:
@@ -97,8 +99,8 @@ class SQL_Interpreter():
         steps = 0 
         cost = 0 
         ExecuteCount=0
-        self.system_prompt=self.get_database_info(self.system_prompt)
-        messages=[{"role":"system", "content":self.system_prompt}, {"role":"user", "content":self.input_prompt}]
+        # self.system_prompt=self.get_database_info(self.system_prompt)
+        messages=[{"role":"system", "content":self.system_prompt}, {"role":"user", "content":self.user_prompt}]
         functions=[
              {
                     "name": "ExecuteSQL",
@@ -149,7 +151,14 @@ class SQL_Interpreter():
                     steps += 1
                     cost += self._get_cost_from_usage(response['usage'])
 
+                    if (json_output['sql'] == "SELECT table_name, column_name, data_type FROM information_schema.columns WHERE table_schema = 'public';"):
+                        messages.append(
+                            {
+                                "role": "assistant",
 
+                                "content": output
+                            }
+                        )
             
                 except:
                     messages.append(
@@ -178,6 +187,9 @@ class SQL_Interpreter():
             print("---------------")
             print(f'Overall Cost for Iteration {ExecuteCount+1}: ', cost)
             print("--------------------------------------------")
+            # print(f"The output after executing the SQL Query \"{sql}\": ") 
+            # print(output)
+            # print("--------------------------------------------")
 
             ExecuteCount+=1
 
