@@ -8,7 +8,7 @@ from tabulate import tabulate
 from prettytable import PrettyTable 
 from config.envs import OPENAI_API_TYPE, OPENAI_BASE_URL, OPENAI_API_KEY, TEMPERATURE, STOP, MAX_TOKENS, TOP_P, FREQUENCY_PENALTY, PRESENCE_PENALTY, N_RESP, TIMEOUT, DB_HOST, DB_PORT, DB_USER, DB_PASSWORD, DB_NAME
 
-# Establish a connection to the PostgreSQL server
+
 conn = psycopg2.connect(host=DB_HOST, database=DB_NAME, user=DB_USER, password=DB_PASSWORD, port=DB_PORT)
 
 # setup openai
@@ -187,13 +187,10 @@ class SQL_Interpreter():
             print("---------------")
             print(f'Overall Cost for Iteration {ExecuteCount+1}: ', cost)
             print("--------------------------------------------")
-            # print(f"The output after executing the SQL Query \"{sql}\": ") 
-            # print(output)
-            # print("--------------------------------------------")
 
             ExecuteCount+=1
 
-            if (ExecuteCount>2):
+            if (ExecuteCount>3):
                 print(f"The output after executing the SQL Query \"{sql}\": ") 
                 print(output)
                 print("--------------------------------------------")
